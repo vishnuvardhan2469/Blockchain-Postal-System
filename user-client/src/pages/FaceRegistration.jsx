@@ -55,67 +55,103 @@ const FaceRegistration = () => {
 
             // Convert Float32Array to regular array for JSON serialization
             const descriptorArray = Array.from(detection.descriptor);
+            const descriptorJson = JSON.stringify(descriptorArray);
 
-            // Send real descriptor to backend
-            await axios.post('http://localhost:3001/api/user/register-face', {
-                aadhar: user.aadhar,
-                descriptor: descriptorArray
-            });
+            // BLOCKCHAIN: Save to Smart Contract
+            const { getContract, parseError } = await import('../utils/blockchain');
+            const contract = await getContract();
 
-            setMessage('Face Registered Successfully!');
+            if (!contract) throw new Error("Could not connect to Blockchain");
+
+            console.log("Saving face to blockchain...");
+
+            // Check if user exists to decide between register or update
+            const existingUser = await contract.getUser(user.aadhar);
+
+            if (existingUser && existingUser.isRegistered) {
+                const tx = await contract.updateFaceDescriptor(user.aadhar, descriptorJson);
+                await tx.wait();
+                console.log("Updated existing user face");
+            } else {
+                // If user doesn't exist on chain, register them fully
+                // (Assumes we have name/mobile from localStorage or defaults)
+                const tx = await contract.registerUser(
+                    user.name || "Unknown User",
+                    user.mobile || "0000000000",
+                    user.aadhar,
+                    descriptorJson,
+                    false
+                );
+                await tx.wait();
+                console.log("Registered new user face");
+            }
+
+            setMessage('Face Registered on Blockchain!');
             setTimeout(() => navigate('/dashboard'), 1500);
 
         } catch (err) {
             console.error("Registration Error:", err);
-            setMessage('Registration failed. Try again.');
+            // const { parseError } = await import('../utils/blockchain'); // Lazy import if needed or move top
+            setMessage(`Registration failed: ${err.message}`);
             setProcessing(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-            <h1 className="text-3xl font-bold text-white mb-8 font-['Orbitron'] tracking-wider">FACE ID SETUP</h1>
+        <div className="min-h-[calc(100vh-100px)] flex flex-col items-center justify-center p-4">
+            {/* Fixed Back Button */}
+            <button
+                onClick={() => navigate('/dashboard')}
+                className="fixed top-28 left-8 text-sm font-bold uppercase tracking-wide text-black hover:underline border-2 border-black hover:bg-black hover:text-white px-3 py-1 rounded-lg transition z-[2000]"
+            >
+                BACK
+            </button>
 
-            <div className="relative w-80 h-80 rounded-full overflow-hidden border-4 border-blue-500 shadow-[0_0_50px_rgba(59,130,246,0.5)] mb-8 bg-black">
-                <Webcam
-                    audio={false}
-                    ref={webcamRef}
-                    screenshotFormat="image/jpeg"
-                    className="w-full h-full object-cover transform scale-x-[-1]" // Mirror mode
-                    videoConstraints={{
-                        width: 480,
-                        height: 480,
-                        facingMode: "user"
-                    }}
-                />
+            <div className="glass-panel text-center max-w-md p-8">
+                <h1 className="text-3xl font-black uppercase text-black italic tracking-tighter mb-2">Face ID Setup</h1>
+                <div className="h-1 w-20 bg-black mx-auto mb-8 rounded-full"></div>
 
-                {/* Scanning Overlay */}
-                <motion.div
-                    className="absolute top-0 left-0 w-full h-1 bg-blue-400 shadow-[0_0_20px_#3b82f6]"
-                    animate={{ top: ['0%', '100%', '0%'] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                />
-            </div>
+                <div className="relative w-full max-w-sm aspect-[4/3] rounded-3xl overflow-hidden border-[4px] border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] mb-8 bg-black mx-auto">
+                    <Webcam
+                        audio={false}
+                        ref={webcamRef}
+                        screenshotFormat="image/jpeg"
+                        className="w-full h-full object-cover transform scale-x-[-1]" // Mirror mode
+                        videoConstraints={{
+                            width: 640,
+                            height: 480,
+                            facingMode: "user"
+                        }}
+                    />
 
-            <p className="text-blue-300 mb-8 text-lg font-mono">{message}</p>
+                    {/* Scanning Overlay */}
+                    <motion.div
+                        className="absolute top-0 left-0 w-full h-1 bg-blue-500"
+                        animate={{ top: ['0%', '100%', '0%'] }}
+                        transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                    />
+                </div>
 
-            <div className="flex gap-4">
-                <button
-                    onClick={() => navigate('/dashboard')}
-                    className="px-6 py-3 rounded-xl bg-slate-800 text-white font-bold hover:bg-slate-700 transition"
-                >
-                    CANCEL
-                </button>
-                <button
-                    onClick={captureAndRegister}
-                    disabled={!modelsLoaded || processing}
-                    className={`px-8 py-3 rounded-xl font-bold transition ${(!modelsLoaded || processing)
-                        ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/30'
-                        }`}
-                >
-                    {processing ? 'REGISTERING...' : (modelsLoaded ? 'REGISTER FACE' : 'LOADING...')}
-                </button>
+                <p className="text-black mb-8 text-sm font-bold bg-blue-50 inline-block px-4 py-2 rounded-lg border-2 border-black uppercase tracking-wide">{message}</p>
+
+                <div className="flex gap-4 justify-center w-full">
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="flex-1 py-3 rounded-lg font-bold transition border-2 border-black hover:bg-slate-100 text-black uppercase tracking-wide text-sm"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={captureAndRegister}
+                        disabled={!modelsLoaded || processing}
+                        className={`flex-1 py-3 rounded-lg font-bold transition border-2 border-black uppercase tracking-wide text-sm ${(!modelsLoaded || processing)
+                            ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]'
+                            }`}
+                    >
+                        {processing ? 'Registering...' : (modelsLoaded ? 'Scan Face' : 'Loading...')}
+                    </button>
+                </div>
             </div>
         </div>
     );

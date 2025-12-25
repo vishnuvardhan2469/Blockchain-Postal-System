@@ -28,10 +28,57 @@ function App() {
         </Routes>
       </div>
 
+      <LogoutButton />
+      <UserNameDisplay />
       <ContactFeature />
     </BrowserRouter>
   );
 }
+
+// Global Logout Button
+import { LogOut } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+const LogoutButton = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Don't show on login page
+  if (location.pathname === '/login' || location.pathname === '/') return null;
+
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
+  return (
+    <button
+      onClick={handleLogout}
+      className="fixed bottom-8 right-8 text-sm font-bold uppercase tracking-wide text-red-600 bg-white border-2 border-black hover:bg-black hover:text-red-500 px-4 py-2 rounded-lg transition z-[2000] flex items-center gap-2"
+      title="Logout"
+    >
+      LOGOUT
+    </button>
+  );
+};
+
+const UserNameDisplay = () => {
+  const location = useLocation();
+  const [user, setUser] = React.useState(null);
+
+  React.useEffect(() => {
+    const u = JSON.parse(localStorage.getItem('user') || '{}');
+    setUser(u);
+  }, [location.pathname]); // Update on route change in case login happens
+
+  if (location.pathname === '/login' || location.pathname === '/' || !user?.name) return null;
+
+  return (
+    <div className="fixed top-28 right-8 z-[2000] border-2 border-black px-4 py-1 rounded-full font-bold bg-white text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] text-sm uppercase tracking-wider">
+      {user.name}
+    </div>
+  );
+};
 
 // Inline Contact Feature Component
 import { MessageCircle, X } from 'lucide-react';
@@ -42,6 +89,10 @@ const ContactFeature = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [complaint, setComplaint] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const location = useLocation();
+
+  // Optional: Hide contact on login if desired, but user didn't ask. 
+  // keeping it everywhere.
 
   const handleSubmit = async () => {
     if (!complaint.trim()) return;
@@ -64,14 +115,14 @@ const ContactFeature = () => {
 
   return (
     <>
-      {/* Circular Floating Button - Top Right */}
+      {/* Circular Floating Button - Moved Up to make room for Logout */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed z-50 w-14 h-14 bg-blue-600 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-blue-500 transition-all hover:scale-110"
-        style={{ position: 'fixed', bottom: '30px', right: '30px', zIndex: 9999 }}
+        className="fixed z-50 w-12 h-12 bg-blue-600/80 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center text-white shadow-lg hover:bg-blue-500 transition-all hover:scale-110"
+        style={{ position: 'fixed', bottom: '90px', right: '30px', zIndex: 9999 }}
         title="Contact Us"
       >
-        <MessageCircle size={24} />
+        <MessageCircle size={20} />
       </button>
 
       {/* Complaint Modal */}

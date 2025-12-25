@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { Scan, UserCheck, ShieldCheck, Check, AlertCircle } from 'lucide-react';
+import { Scan, UserCheck, ShieldCheck, Check, AlertCircle, Package } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import * as faceapi from 'face-api.js';
@@ -48,29 +48,65 @@ const Verify = () => {
         loadModels();
     }, []);
 
-    // Step 1: Verify Aadhar & Get Descriptor
-    const handleAadharSubmit = async () => {
-        if (aadhar.length !== 16) {
-            setError('Aadhar must be 16 digits');
-            return;
-        }
+    // Step 1: Verify Identity (Aadhar OR Order ID)
+    const handleIdentitySubmit = async () => {
         setError('');
         try {
-            // Check availability and get descriptor
-            const res = await axios.post('http://localhost:3001/api/user/get-face-descriptor', { aadhar });
-            if (res.data.success && res.data.descriptor) {
-                setTargetDescriptor(new Float32Array(res.data.descriptor)); // Convert back to typed array
-                setStep(2);
+            const { getContract } = await import('../utils/blockchain');
+            const contract = await getContract();
+            if (!contract) throw new Error("Blockchain disconnected");
+
+            if (type === 'send') {
+                // --- SEND FLOW (Aadhar -> Face) ---
+                if (aadhar.length !== 16) { setError('Aadhar must be 16 digits'); return; }
+
+                const user = await contract.getUser(aadhar);
+                if (user && user.isRegistered) {
+                    if (user.faceDescriptor && user.faceDescriptor.length > 2) {
+                        const descriptorArray = JSON.parse(user.faceDescriptor);
+                        setTargetDescriptor(new Float32Array(descriptorArray));
+                        setStep(2);
+                    } else { setError('User registered but no face ID found.'); }
+                } else { setError('User not found on Blockchain.'); }
+
+            } else {
+                // --- RECEIVE FLOW (Order ID -> Email -> Aadhar -> Face) ---
+                if (!transactionId) { setError('Enter Order ID'); return; }
+
+                console.log("Fetching Order:", transactionId);
+                const order = await contract.ordersById(transactionId);
+
+                if (!order || !order.receiverEmail) {
+                    setError("Order not found or Invalid");
+                    return;
+                }
+                if (order.status === 'DELIVERED') {
+                    setError("Order already delivered!");
+                    return;
+                }
+
+                console.log("Receiver Email:", order.receiverEmail);
+                const receiverAadhar = await contract.emailToAadhar(order.receiverEmail);
+
+                if (!receiverAadhar) {
+                    setError("Receiver Email not linked to any User Aadhar");
+                    return;
+                }
+
+                console.log("Receiver Aadhar:", receiverAadhar);
+                const user = await contract.getUser(receiverAadhar);
+
+                if (user && user.faceDescriptor && user.faceDescriptor.length > 2) {
+                    const descriptorArray = JSON.parse(user.faceDescriptor);
+                    setTargetDescriptor(new Float32Array(descriptorArray));
+                    setStep(2); // Proceed to Face Scan
+                } else {
+                    setError('Receiver has not set up Face ID yet.');
+                }
             }
         } catch (err) {
             console.error(err);
-            if (err.response?.status === 404) {
-                // Fallback for prototype: If user has no face registered, warn but maybe allow bypass or Mock?
-                // For "Specific" request, we enforce it.
-                setError('User not found or Face ID not registered. Please register in User App.');
-            } else {
-                setError('Connection failed');
-            }
+            setError('Blockchain Lookup Failed');
         }
     };
 
@@ -132,93 +168,136 @@ const Verify = () => {
     };
 
     const handleFaceSuccess = async () => {
-        // Generate Token/OTP flow
+        // BLOCKCHAIN: Signal Verification
+        console.log("Face Verified. Processing...");
         try {
-            const res = await axios.post('http://localhost:3001/api/transaction/generate-otp', {
-                aadhar,
-                type
-            });
-            if (res.data.success) {
-                setTransactionId(res.data.transactionId);
-                setTimeout(() => setStep(3), 1000); // Wait a bit to show success
+            const { getContract } = await import('../utils/blockchain');
+            const contract = await getContract();
+
+            if (contract) {
+                if (type === 'receive') {
+                    // --- RECEIVE FLOW: IMMEDIATE DELIVERY ---
+                    console.log("Receiver Verified. Updating Status...");
+                    const tx = await contract.updateOrderStatus(transactionId, "DELIVERED");
+                    await tx.wait();
+                    console.log("Order Delivered!");
+                    setStep(4); // Success Loop
+                } else {
+                    // --- SEND FLOW: SIGNAL AND WAIT FOR OTP ---
+                    // This triggers the User Dashboard to show the OTP
+                    const tx = await contract.verifyUser(aadhar);
+                    await tx.wait();
+                    console.log("Verification Signaled. Waiting for OTP from User...");
+                    setStep(3); // Move to OTP Input
+                }
             }
         } catch (err) {
-            setError('Failed to generate OTP');
+            console.error(err);
+            setError('Failed to process transaction on-chain');
         }
     };
 
-    // Step 3: OTP Verify
+    // Step 3: OTP Verify & Grant Access
     const handleOtpVerify = async () => {
+        if (otp.length !== 4) {
+            setError("Enter 4-digit OTP provided by User");
+            return;
+        }
+
+        // In this demo, we trust the Controller to enter the OTP the User gives them.
+        setScanMessage("Processing...");
         try {
-            setError('');
-            const res = await axios.post('http://localhost:3001/api/transaction/verify-otp', {
-                transactionId,
-                otp
-            });
-            if (res.data.success) {
+            const { getContract } = await import('../utils/blockchain');
+            const contract = await getContract();
+
+            if (contract) {
+                if (type === 'send') {
+                    // Send Flow: Authorize User Form
+                    const tx = await contract.authorizeUser(aadhar);
+                    await tx.wait();
+                    console.log("Access Granted to User");
+                } else {
+                    // Receive Flow: Deliver Order
+                    // transactionId is the Order ID entered in Step 1
+                    if (!transactionId) {
+                        setError("Transaction ID Missing");
+                        return;
+                    }
+                    const tx = await contract.updateOrderStatus(transactionId, "DELIVERED");
+                    await tx.wait();
+                    console.log("Order Delivered");
+                }
                 setStep(4);
             }
         } catch (err) {
-            setError('Incorrect OTP');
+            console.error(err);
+            setError("Action Failed on Blockchain");
         }
     };
 
     return (
-        <div className="min-h-screen flex flex-col p-4 bg-slate-900 text-slate-100 font-sans">
+        <div className="min-h-[calc(100vh-100px)] flex flex-col p-4 bg-white text-black font-sans">
+            {/* Fixed Back Button */}
             <button
                 onClick={() => navigate('/dashboard')}
-                className="fixed bottom-8 left-8 text-white border border-white/30 px-4 py-2 rounded hover:bg-white/10 transition z-50 text-xs tracking-widest"
+                className="fixed top-28 left-8 text-sm font-bold uppercase tracking-wide text-black hover:underline border-2 border-black hover:bg-black hover:text-white px-3 py-1 rounded-lg transition z-[2000]"
             >
                 BACK
             </button>
 
-            <div className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto w-full">
+            <div className="flex-1 flex flex-col items-center justify-center max-w-xl mx-auto w-full">
                 {/* Progress Bar */}
-                <div className="w-full h-1 bg-slate-800 mb-8 rounded-full overflow-hidden">
-                    <motion.div className="h-full bg-blue-500" animate={{ width: `${step * 25}%` }} />
+                <div className="w-full h-2 bg-slate-100 border-2 border-black mb-12 rounded-full overflow-hidden">
+                    <motion.div className="h-full bg-blue-600" animate={{ width: `${step * 25}%` }} />
                 </div>
 
-                <div className="glass-panel w-full p-8 min-h-[500px] flex flex-col items-center justify-center relative">
+                <div className="glass-panel w-full p-6 min-h-[300px] flex flex-col items-center justify-center relative shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] rounded-[2.5rem] border-4 border-black">
                     <AnimatePresence mode="wait">
 
-                        {/* STEP 1: AADHAR */}
-                        {step === 1 && (
-                            <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full max-w-sm text-center">
-                                <UserCheck size={64} className="text-blue-400 mx-auto mb-6" />
-                                <h2 className="text-2xl font-bold mb-2 font-['Orbitron']">IDENTITY CLAIM</h2>
-                                <p className="text-slate-400 mb-8">Enter User's 16-digit Aadhar ID</p>
+                        {/* === RECEIVE FLOW (DELIVERY) === */}
+                        {type === 'receive' && step === 1 && (
+                            <motion.div key="step1-rx" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full max-w-sm text-center">
+                                <Package size={48} className="text-black mx-auto mb-4 transform scale-110" />
+                                <h2 className="text-3xl font-black mb-2 italic tracking-tight uppercase">Delivery Protocol</h2>
+                                <div className="h-1 w-20 bg-blue-600 mx-auto mb-4"></div>
+                                <p className="text-slate-600 font-bold mb-6 text-sm">Enter Order ID to Deliver</p>
                                 <input
-                                    className="w-full bg-slate-800 border border-slate-700 rounded-lg p-4 text-center text-xl tracking-[0.2em] focus:border-blue-500 outline-none transition mb-4"
+                                    className="w-full bg-white border-4 border-black rounded-xl p-3 text-center text-lg font-black tracking-[0.1em] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none transition mb-4 uppercase placeholder:text-slate-300"
+                                    placeholder="ORD-XXXX"
+                                    value={transactionId || ''}
+                                    onChange={(e) => setTransactionId(e.target.value)}
+                                />
+                                {error && <div className="bg-red-50 text-red-600 border-l-4 border-red-600 px-4 py-2 mb-4 font-bold text-xs w-full">{error}</div>}
+                                <button className="btn-primary py-3 text-base" onClick={handleIdentitySubmit}>VERIFY RECEIVER</button>
+                            </motion.div>
+                        )}
+
+                        {/* === SEND FLOW (IDENTITY) === */}
+                        {type === 'send' && step === 1 && (
+                            <motion.div key="step1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full max-w-sm text-center">
+                                <UserCheck size={48} className="text-blue-600 mx-auto mb-4 transform scale-110" />
+                                <h2 className="text-3xl font-black mb-2 italic tracking-tight uppercase">Identity Claim</h2>
+                                <div className="h-1 w-20 bg-blue-600 mx-auto mb-4"></div>
+                                <p className="text-slate-600 font-bold mb-6 text-sm">Enter User's 16-digit Aadhar ID</p>
+                                <input
+                                    className="w-full bg-white border-4 border-black rounded-xl p-3 text-center text-lg font-black tracking-[0.2em] focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] outline-none transition mb-4 placeholder:text-slate-300"
                                     placeholder="0000 0000 0000 0000"
                                     value={aadhar}
                                     onChange={(e) => setAadhar(e.target.value)}
                                     maxLength={16}
                                 />
-                                {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
-                                <button className="btn-primary" onClick={handleAadharSubmit}>VERIFY IDENTITY</button>
+                                {error && <div className="bg-red-50 text-red-600 border-l-4 border-red-600 px-4 py-2 mb-4 font-bold text-xs w-full">{error}</div>}
+                                <button className="btn-primary py-3 text-base" onClick={handleIdentitySubmit}>VERIFY IDENTITY</button>
                             </motion.div>
                         )}
 
-                        {/* STEP 2: FACE SCAN */}
+                        {/* STEP 2: FACE SCAN (Send Only) */}
                         {step === 2 && (
                             <motion.div key="step2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full flex flex-col items-center">
                                 {/* Toggle Switch */}
-                                <div className="flex gap-4 mb-6 bg-slate-800 p-1 rounded-lg z-50 relative">
-                                    <button
-                                        onClick={() => { setIsScanning(false); setUseCamera(true); setUploadedImage(null); setError(''); }}
-                                        className={`px-4 py-2 rounded-md text-sm font-bold transition ${useCamera ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        CAMERA
-                                    </button>
-                                    <button
-                                        onClick={() => { setIsScanning(false); setUseCamera(false); setError(''); }}
-                                        className={`px-4 py-2 rounded-md text-sm font-bold transition ${!useCamera ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
-                                    >
-                                        UPLOAD PHOTO
-                                    </button>
-                                </div>
 
-                                <div className="relative w-64 h-64 rounded-full overflow-hidden border-4 border-blue-500 shadow-[0_0_50px_rgba(59,130,246,0.5)] mb-6 bg-black flex items-center justify-center">
+
+                                <div className="relative w-full max-w-sm aspect-[4/3] rounded-3xl overflow-hidden border-[6px] border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,0.2)] mb-8 bg-slate-100 flex items-center justify-center">
                                     {useCamera ? (
                                         <Webcam
                                             audio={false}
@@ -230,9 +309,9 @@ const Verify = () => {
                                         uploadedImage ? (
                                             <img ref={imgRef} src={uploadedImage} alt="Upload" className="w-full h-full object-cover" />
                                         ) : (
-                                            <label className="cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-400 transition w-full h-full">
-                                                <span className="text-4xl mb-2">📁</span>
-                                                <span className="text-xs">Select Image</span>
+                                            <label className="cursor-pointer flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 transition w-full h-full group">
+                                                <span className="text-5xl mb-2 group-hover:scale-110 transition">📁</span>
+                                                <span className="text-xs font-bold uppercase tracking-wide">Select Image</span>
                                                 <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                                             </label>
                                         )
@@ -240,18 +319,18 @@ const Verify = () => {
 
                                     {isScanning && (
                                         <motion.div
-                                            className="absolute top-0 left-0 w-full h-1 bg-blue-400 shadow-[0_0_20px_#3b82f6]"
+                                            className="absolute top-0 left-0 w-full h-2 bg-blue-500/80 shadow-[0_0_20px_#3b82f6]"
                                             animate={{ top: ['0%', '100%', '0%'] }}
                                             transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                                         />
                                     )}
                                 </div>
-                                <h3 className="text-xl font-bold font-['Orbitron'] mb-2">{isScanning ? 'VERIFYING BIOMETRICS...' : 'READY TO SCAN'}</h3>
-                                <p className="text-blue-300 font-mono text-sm mb-6">{scanMessage}</p>
-                                {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+                                <h3 className="text-xl font-black italic uppercase tracking-tighter mb-2">{isScanning ? 'VERIFYING BIOMETRICS...' : 'READY TO SCAN'}</h3>
+                                <p className="text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-md border border-blue-200 text-sm mb-6 uppercase tracking-wide">{scanMessage}</p>
+                                {error && <div className="bg-red-50 text-red-600 border-l-4 border-red-600 px-4 py-2 mb-6 font-bold text-sm w-full text-center">{error}</div>}
 
                                 {!isScanning && (
-                                    <button className="btn-primary max-w-xs" onClick={startScanning}>
+                                    <button className="btn-primary max-w-xs py-3 text-lg" onClick={startScanning}>
                                         START SCAN
                                     </button>
                                 )}
@@ -261,23 +340,28 @@ const Verify = () => {
                         {/* STEP 3: OTP */}
                         {step === 3 && (
                             <motion.div key="step3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="w-full max-w-sm text-center">
-                                <ShieldCheck size={64} className="text-green-400 mx-auto mb-6" />
-                                <h2 className="text-2xl font-bold mb-2 font-['Orbitron']">AUTHORIZATION</h2>
-                                <p className="text-slate-400 mb-8">Enter OTP sent to User's Device</p>
-                                <OtpInput length={4} value={otp} onChange={setOtp} />
-                                {error && <p className="text-red-400 mt-4 text-sm">{error}</p>}
-                                <button className="btn-primary absolute bottom-12 left-1/2 -translate-x-1/2 w-40 py-2 text-sm" onClick={handleOtpVerify}>AUTHENTICATE</button>
+                                <ShieldCheck size={64} className="text-black mx-auto mb-6" />
+                                <p className="text-slate-600 font-bold mb-8">Enter OTP sent to {type === 'send' ? "User" : "Receiver"}</p>
+
+                                <div className="mb-8">
+                                    <OtpInput length={4} value={otp} onChange={setOtp} />
+                                </div>
+
+                                {error && <div className="bg-red-50 text-red-600 border-l-4 border-red-600 px-4 py-2 mb-6 font-bold text-sm w-full">{error}</div>}
+                                <button className="btn-primary w-full py-4 text-lg" onClick={handleOtpVerify}>
+                                    {type === 'send' ? 'AUTHENTICATE' : 'CONFIRM DELIVERY'}
+                                </button>
                             </motion.div>
                         )}
 
                         {/* STEP 4: SUCCESS */}
                         {step === 4 && (
                             <motion.div key="step4" initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="text-center">
-                                <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_30px_#22c55e]">
-                                    <Check size={48} className="text-black" />
+                                <div className="w-32 h-32 bg-green-100 border-4 border-green-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[8px_8px_0px_0px_#16a34a]">
+                                    <Check size={64} className="text-green-600" strokeWidth={4} />
                                 </div>
-                                <h2 className="text-3xl font-bold text-white mb-2 font-['Orbitron']">VERIFIED</h2>
-                                <p className="text-slate-400 mb-8">Process Completed Successfully</p>
+                                <h2 className="text-4xl font-black text-black mb-4 italic uppercase tracking-tighter">{type === 'send' ? 'VERIFIED' : 'DELIVERED'}</h2>
+                                <p className="text-slate-600 font-bold mb-10 text-lg">{type === 'send' ? 'Identity Confirmed Successfully' : 'Package Handed Over Successfully'}</p>
                                 <button className="btn-primary" onClick={() => navigate('/dashboard')}>RETURN TO DASHBOARD</button>
                             </motion.div>
                         )}

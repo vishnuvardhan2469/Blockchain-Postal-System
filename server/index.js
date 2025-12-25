@@ -34,7 +34,70 @@ const PORT = 3001;
 // --- Helper Functions ---
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString(); // 4 digit OTP
 
+// --- SMS Helper (Unused now but kept) ---
+const sendSMS = async (mobile, otp) => {
+    try {
+        await axios.get('https://www.fast2sms.com/dev/bulkV2', {
+            params: {
+                authorization: "C1UNlmgVqYLZTB2RptPQ3n8DvjhSEkIfGOo5a4w60M7bzKAHxJ6UMt8cqn1QjPJbv0mIGWezKfx7rgkR",
+                variables_values: otp,
+                route: "otp",
+                numbers: mobile
+            }
+        });
+        console.log(`[REAL SMS] Sent OTP ${otp} to ${mobile}`);
+        return true;
+    } catch (err) {
+        console.error("Failed to send real SMS:", err.message);
+        return false;
+    }
+};
+
 // --- Routes ---
+
+// AUTH: Send OTP for Registration (EMAIL)
+app.post('/api/auth/send-otp', async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: "Email required" });
+
+    const otp = generateOTP();
+    otpStore[email] = { otp, expiresAt: Date.now() + 300000 };
+
+    // Send Email OTP
+    const mailOptions = {
+        from: 'vishnuvardhanchinni14@gmail.com',
+        to: email,
+        subject: 'User Verification Code',
+        text: `Your OTP for User Registration is: ${otp}`
+    };
+
+    try {
+        await transporter.sendMail(mailOptions);
+        console.log(`[EMAIL AUTH] Sent OTP ${otp} to ${email}`);
+        res.json({ success: true, message: "OTP sent to email" });
+    } catch (error) {
+        console.error("Email send error:", error);
+        // Fallback for demo
+        console.log(`[FALLBACK OTP] for ${email}: ${otp}`);
+        res.json({ success: true, message: "OTP sent (Check Email or Server Console)" });
+    }
+});
+
+// AUTH: Verify OTP
+app.post('/api/auth/verify-otp', (req, res) => {
+    const { email, otp } = req.body; // Changed mobile to email
+    const record = otpStore[email];
+
+    if (record && record.otp === otp) {
+        delete otpStore[email];
+        res.json({ success: true, message: "OTP Verified" });
+    } else {
+        // Master Key for Demo
+        if (otp === '1234') return res.json({ success: true, message: "OTP Verified" });
+
+        res.status(400).json({ success: false, message: "Invalid OTP" });
+    }
+});
 
 // USER: Login / Check Aadhar
 app.post('/api/user/login', (req, res) => {
@@ -45,8 +108,6 @@ app.post('/api/user/login', (req, res) => {
         return res.status(404).json({ success: false, message: "Mobile number not registered." });
     }
 
-    // In a real app, we'd check if Aadhar matches the mobile record strictly or if it's just a validity check.
-    // Requirement: "if entered aadhar number is not matched pop up a notification as Invalid details"
     if (user.aadhar !== aadhar) {
         return res.status(401).json({ success: false, message: "Invalid Aadhar details for this mobile number." });
     }
@@ -65,12 +126,12 @@ app.post('/api/controller/login', async (req, res) => {
 
         // Generate Real OTP
         const otp = generateOTP();
-        otpStore[email] = { otp, expiresAt: Date.now() + 300000 }; // 5 mins validity setting
+        otpStore[email] = { otp, expiresAt: Date.now() + 300000 };
 
         // Send Email
         const mailOptions = {
             from: 'vishnuvardhanchinni14@gmail.com',
-            to: email, // Sending to the controller himself
+            to: email,
             subject: 'Admin Login Verification Code',
             text: `Your OTP for Secure Delivery App Admin Access is: ${otp}`
         };
@@ -81,7 +142,9 @@ app.post('/api/controller/login', async (req, res) => {
             res.json({ success: true, message: "OTP sent to mail", otpRequired: true });
         } catch (error) {
             console.error("Email send error:", error);
-            res.status(500).json({ success: false, message: "Failed to send email OTP" });
+            // Fallback: Log to console so user can still proceed
+            console.log(`[FALLBACK OTP] for ${email}: ${otp}`);
+            res.json({ success: true, message: "OTP sent (Check Email or Server Console)" });
         }
 
     } else {
@@ -100,7 +163,6 @@ app.post('/api/controller/verify-login-otp', (req, res) => {
         delete otpStore[email];
         res.json({ success: true, token: "mock-controller-token" });
     } else {
-        // Allow 1234 as fallback master key for testing if needed, or remove for strict prod
         if (otp === '1234') {
             return res.json({ success: true, token: "mock-controller-token" });
         }
@@ -108,25 +170,14 @@ app.post('/api/controller/verify-login-otp', (req, res) => {
     }
 });
 
-// SHARED: Generate OTP for Transaction (Sender or Receiver flow)
+// SHARED: Generate OTP for Transaction
 app.post('/api/transaction/generate-otp', (req, res) => {
-    const { aadhar, type } = req.body; // type: 'SEND' or 'RECEIVE'
+    const { aadhar, type } = req.body;
 
     const user = users.find(u => u.aadhar === aadhar);
     if (!user) {
         return res.status(404).json({ success: false, message: "User not found" });
     }
-
-    // Face Verification Check (if descriptor provided by Controller)
-    // Note: The comparison usually happens on Client (Controller), but we can store intent here.
-    // For "specific" recognition, the Controller sends the matched Aadhar. 
-    // If the Controller says "I matched this face to this Aadhar", we trust the Controller.
-    // So current logic is fine: Controller sends Aadhar, we generate OTP.
-
-    // However, we should ensure the user HAS a face registered if we want to enforce it.
-    // if (!user.faceDescriptor) {
-    //    return res.status(400).json({ success: false, message: "User face not registered. Please register first." });
-    // }
 
     const otp = generateOTP();
     const transactionId = Date.now().toString();
@@ -142,29 +193,11 @@ app.post('/api/transaction/generate-otp', (req, res) => {
     };
     transactions.push(newTransaction);
 
-    // Broadcast to User Client (simulating SMS/App notification)
+    // Broadcast
     io.emit(`otp-generated-${aadhar}`, { otp, type, transactionId });
 
-    // --- REAL SMS IMPLEMENTATION (ACTIVE) ---
-    // Prerequisite: API_KEY from Fast2SMS
-    const sendRealSMS = async () => {
-        try {
-            await axios.get('https://www.fast2sms.com/dev/bulkV2', {
-                params: {
-                    authorization: "C1UNlmgVqYLZTB2RptPQ3n8DvjhSEkIfGOo5a4w60M7bzKAHxJ6UMt8cqn1QjPJbv0mIGWezKfx7rgkR", // Key updated
-                    variables_values: otp,
-                    route: "otp",
-                    numbers: user.mobile
-                }
-            });
-            console.log(`[REAL SMS] Sent OTP ${otp} to ${user.mobile}`);
-        } catch (err) {
-            console.error("Failed to send real SMS:", err.message);
-        }
-    }
-    // Fire and forget (don't await to keep UI fast)
-    sendRealSMS();
-    // --------------------------------------------------
+    // Send Real SMS
+    sendSMS(user.mobile, otp);
 
     res.json({ success: true, transactionId, message: "OTP sent to user" });
 });
@@ -181,17 +214,14 @@ app.post('/api/transaction/verify-otp', (req, res) => {
 
     if (transaction.otp === otp) {
         transaction.status = 'VERIFIED';
-
-        // Notify User that Controller verified the OTP
         io.emit(`transaction-verified-${transaction.aadhar}`, { success: true, transactionId, type: transaction.type });
-
         res.json({ success: true, message: "OTP Verified" });
     } else {
         res.status(400).json({ success: false, message: "Incorrect OTP" });
     }
 });
 
-// USER: Complete Order (Provide Address & Details)
+// USER: Complete Order
 app.post('/api/user/complete-order', (req, res) => {
     const { transactionId, receiverAddress, receiverMobile, packageDescription, packageWeight } = req.body;
 
@@ -204,7 +234,6 @@ app.post('/api/user/complete-order', (req, res) => {
     transaction.packageWeight = packageWeight;
     transaction.status = 'IN_TRANSIT';
 
-    // Notify User
     io.emit(`order-status-${transaction.aadhar}`, { status: 'IN_TRANSIT', message: "Order is travelling" });
 
     res.json({ success: true, message: "Order placed successfully" });
@@ -233,14 +262,12 @@ app.post('/api/user/register-face', (req, res) => {
 
 // USER: Get Transaction History
 app.get('/api/user/history/:identifier', (req, res) => {
-    const { identifier } = req.params; // Can be mobile or aadhar
+    const { identifier } = req.params;
 
-    // Find the user to get linking details
     const user = users.find(u => u.mobile === identifier || u.aadhar === identifier);
 
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    // Filter transactions where user is Sender (by Aadhar) or Receiver (by Mobile)
     const userHistory = transactions.filter(t =>
         t.aadhar === user.aadhar || t.receiverMobile === user.mobile
     ).map(t => ({
@@ -271,9 +298,6 @@ app.post('/api/user/get-face-descriptor', (req, res) => {
 
     res.json({ success: true, descriptor: user.faceDescriptor });
 });
-
-// RECEIVER FLOW (similar logic can be added if needed, leveraging the generic verify-otp)
-
 
 io.on('connection', (socket) => {
     console.log('a user connected');

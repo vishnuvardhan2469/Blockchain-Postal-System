@@ -1,0 +1,619 @@
+{
+  "address": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "aadhar",
+          "type": "string"
+        }
+      ],
+      "name": "AccessGranted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "orderId",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "sender",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "receiver",
+          "type": "string"
+        }
+      ],
+      "name": "OrderCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "orderId",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "status",
+          "type": "string"
+        }
+      ],
+      "name": "OrderStatusUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "aadhar",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "email",
+          "type": "string"
+        }
+      ],
+      "name": "UserRegistered",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "aadhar",
+          "type": "string"
+        }
+      ],
+      "name": "UserVerified",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_aadhar",
+          "type": "string"
+        }
+      ],
+      "name": "authorizeUser",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_orderId",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_senderAadhar",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_receiverMobile",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_receiverEmail",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_receiverAddress",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_description",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_weight",
+          "type": "string"
+        }
+      ],
+      "name": "createOrder",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "name": "emailToAadhar",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getOrders",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "id",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "senderAadhar",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "receiverMobile",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "receiverEmail",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "receiverAddress",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "description",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "weight",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "status",
+              "type": "string"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "deliveryTimestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct PostalService.Order[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_aadhar",
+          "type": "string"
+        }
+      ],
+      "name": "getUser",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "mobile",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "password",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "aadhar",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "faceDescriptor",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "isRegistered",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "isController",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct PostalService.User",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_email",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_password",
+          "type": "string"
+        }
+      ],
+      "name": "login",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "mobile",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "password",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "aadhar",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "faceDescriptor",
+              "type": "string"
+            },
+            {
+              "internalType": "bool",
+              "name": "isRegistered",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "isController",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct PostalService.User",
+          "name": "user",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "orderIds",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "name": "ordersById",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "senderAadhar",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "receiverMobile",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "receiverEmail",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "receiverAddress",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "description",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "weight",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "status",
+          "type": "string"
+        },
+        {
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "deliveryTimestamp",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_mobile",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_email",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_password",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_aadhar",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_faceDescriptor",
+          "type": "string"
+        },
+        {
+          "internalType": "bool",
+          "name": "_isController",
+          "type": "bool"
+        }
+      ],
+      "name": "registerUser",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_aadhar",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_faceDescriptor",
+          "type": "string"
+        }
+      ],
+      "name": "updateFaceDescriptor",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_orderId",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_status",
+          "type": "string"
+        }
+      ],
+      "name": "updateOrderStatus",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "name": "usersByAadhar",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "mobile",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "password",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "aadhar",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "faceDescriptor",
+          "type": "string"
+        },
+        {
+          "internalType": "bool",
+          "name": "isRegistered",
+          "type": "bool"
+        },
+        {
+          "internalType": "bool",
+          "name": "isController",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_aadhar",
+          "type": "string"
+        }
+      ],
+      "name": "verifyUser",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
+}

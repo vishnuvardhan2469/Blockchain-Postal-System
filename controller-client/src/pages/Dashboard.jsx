@@ -8,70 +8,44 @@ const Dashboard = () => {
     const navigate = useNavigate();
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 p-4">
-            <h1 className="font-bold text-slate-400 mb-12 tracking-[0.5em] uppercase" style={{ fontSize: '14px' }}>SELECT OPERATION</h1>
 
-            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: '150px', width: '100%' }}>
-                <div style={{ width: '300px' }}>
+        <div className="min-h-screen p-4 font-sans text-slate-900">
+            {/* Header */}
+            {/* Header */}
+
+            <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[calc(100vh-100px)]">
+                <h1 className="font-black text-black mb-8 tracking-[0.2em] uppercase text-sm bg-blue-50 px-4 py-2 rounded-full border border-blue-200">Select Operation</h1>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full px-4">
                     <MenuOption
-                        icon={<Truck size={48} className="text-emerald-400 mb-4" />}
+                        icon={<Truck size={48} className="text-black mb-4" />}
                         title="SENDER"
                         desc="Process new shipment."
-                        onClick={() => navigate('/verify/SEND')}
+                        onClick={() => navigate('/verify/send')}
                     />
-                </div>
 
-                <div style={{ width: '300px' }}>
                     <MenuOption
-                        icon={<PackageCheck size={48} className="text-blue-400 mb-4" />}
+                        icon={<PackageCheck size={48} className="text-blue-600 mb-4" />}
                         title="RECEIVER"
                         desc="Confirm delivery."
-                        onClick={() => navigate('/verify/RECEIVE')}
+                        onClick={() => navigate('/verify/receive')}
                     />
                 </div>
             </div>
-
-            <button
-                onClick={() => navigate('/login')}
-                style={{
-                    position: 'fixed',
-                    bottom: '2rem',
-                    right: '2rem',
-                    zIndex: 1000,
-                    color: 'white',
-                    border: '1px solid rgba(255,255,255,0.3)',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '0.5rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.1em',
-                    fontSize: '0.8rem'
-                }}
-                className="hover:bg-white/10 transition-colors"
-            >
-                Logout
-            </button>
         </div>
     );
 };
 
 const MenuOption = ({ icon, title, desc, onClick }) => (
     <motion.div
-        whileHover={{ scale: 1.05, borderColor: '#10b981' }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ y: -5, boxShadow: "8px 8px 0px 0px rgba(0,0,0,1)" }}
+        whileTap={{ y: 0, boxShadow: "0px 0px 0px 0px rgba(0,0,0,1)" }}
         onClick={onClick}
-        className="glass-panel flex flex-col items-center text-center cursor-pointer transition-colors justify-center group"
-        style={{
-            padding: '2rem',
-            width: '100%',
-            margin: 0,
-            border: '4px solid #000000',
-            boxShadow: '8px 8px 0px #000000',
-            borderRadius: '2rem'
-        }}
+        className="bg-white border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer p-6 flex flex-col items-center text-center w-full min-h-[200px] justify-center"
     >
-        <div className="group-hover:scale-110 transition-transform duration-300">{icon}</div>
-        <h2 className="text-xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-slate-400 text-sm">{desc}</p>
+        <div className="mb-4 text-black">{icon}</div>
+        <h2 className="text-2xl font-black text-black mb-2 uppercase italic tracking-tight">{title}</h2>
+        <p className="text-slate-600 font-bold text-sm tracking-wide">{desc}</p>
     </motion.div>
 );
 

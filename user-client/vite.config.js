@@ -12,5 +12,10 @@ export default defineConfig({
     commonjsOptions: {
       include: [/face-api.js/, /node_modules/]
     }
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+    host: true
   }
 })

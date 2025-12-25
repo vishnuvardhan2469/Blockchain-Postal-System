@@ -7,5 +7,6 @@ export default defineConfig({
     server: {
         port: 5170, // Running on 5170 as the main entry point
         strictPort: true,
+        host: true
     }
 })

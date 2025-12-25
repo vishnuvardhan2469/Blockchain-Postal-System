@@ -1,0 +1,74 @@
+[
+  {
+    "Name": "Admin Controller",
+    "Mobile": "9999999999",
+    "Aadhar": "1234123412345678",
+    "Role": "CONTROLLER"
+  },
+  {
+    "Name": "Raman",
+    "Mobile": "9876543210",
+    "Aadhar": "1122334455667788",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Aarav",
+    "Mobile": "6982897149",
+    "Aadhar": "5013941336594948",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Vihaan",
+    "Mobile": "9297314876",
+    "Aadhar": "7577553305784941",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Aditya",
+    "Mobile": "7949123692",
+    "Aadhar": "8092093408566610",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Sai",
+    "Mobile": "7080600499",
+    "Aadhar": "2785547027619448",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Arjun",
+    "Mobile": "6520202900",
+    "Aadhar": "7856659046705559",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Reyansh",
+    "Mobile": "7122482391",
+    "Aadhar": "0879733043189575",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Vivaan",
+    "Mobile": "6819194852",
+    "Aadhar": "3151255436140288",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Krishna",
+    "Mobile": "8949711098",
+    "Aadhar": "3256714313668574",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Ishaan",
+    "Mobile": "8675986825",
+    "Aadhar": "8051378011837526",
+    "Role": "CITIZEN"
+  },
+  {
+    "Name": "Shaurya",
+    "Mobile": "9141739068",
+    "Aadhar": "0738969004815233",
+    "Role": "CITIZEN"
+  }
+]

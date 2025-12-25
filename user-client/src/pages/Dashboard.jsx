@@ -8,110 +8,191 @@ import OtpDisplay from '../components/ui/OtpDisplay';
 import io from 'socket.io-client';
 import axios from 'axios';
 
-const socket = io('http://localhost:3001');
-
 const Dashboard = () => {
-    console.log("DASHBOARD RELOADED - VERSION CHECK");
+    console.log("DASHBOARD RELOADED - BLOCKCHAIN VERSION");
     const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{}'));
     const [view, setView] = useState('MAIN'); // MAIN, SEND_FLOW, RECEIVE_FLOW
     const [orderStatus, setOrderStatus] = useState('IDLE'); // IDLE, OTP_RECEIVED, FORM_INPUT, TRANSIT
     const [currentOtp, setCurrentOtp] = useState(null);
-    const [currentTransactionId, setCurrentTransactionId] = useState(null);
-    const [receiverData, setReceiverData] = useState({ address: '', mobile: '' });
+    const [lastCreatedOrderId, setLastCreatedOrderId] = useState(null); // New state for success view
+    const [receiverData, setReceiverData] = useState({ address: '', mobile: '', description: '', weight: '', email: '' });
+    const [incomingOrders, setIncomingOrders] = useState([]);
+    const [loadingOrders, setLoadingOrders] = useState(false);
 
+    // BLOCKCHAIN REF
+    const [contract, setContract] = useState(null);
+
+    // Initialize Blockchain
     useEffect(() => {
-        if (user.aadhar) {
-            // Listen for OTP generation (Sent by Controller during Face Scan)
-            socket.on(`otp-generated-${user.aadhar}`, (data) => {
-                console.log("OTP Received!", data);
-                setCurrentOtp(data.otp);
-                setCurrentTransactionId(data.transactionId);
-                setOrderStatus('OTP_RECEIVED');
-                // Auto switch view if needed
-                if (data.type === 'SEND') setView('SEND_FLOW');
-                if (data.type === 'RECEIVE') setView('RECEIVE_FLOW');
-            });
+        const initBlockchain = async () => {
+            const { getContract } = await import('../utils/blockchain');
+            const c = await getContract();
+            setContract(c);
+        };
+        initBlockchain();
+    }, []);
 
-            // Listen for Verification Success (Controller entered OTP)
-            socket.on(`transaction-verified-${user.aadhar}`, (data) => {
-                if (data.type === 'SEND') {
+    // Listeners
+    // Listeners
+    useEffect(() => {
+        if (contract && user.aadhar) {
+            console.log("Listening for Blockchain Events...");
+
+            // 1. Controller Scanned Face -> Generate and Show OTP
+            const onUserVerified = (verifiedAadhar) => {
+                console.log("User Verified Signal:", verifiedAadhar);
+                if (verifiedAadhar === user.aadhar) {
+                    const mockOtp = Math.floor(1000 + Math.random() * 9000).toString();
+                    setCurrentOtp(mockOtp);
+                    setOrderStatus('OTP_RECEIVED');
+                    // In a real app, this OTP would be sent to backend or saved on chain hashed
+                    // For demo, we just show it to user to tell controller.
+                }
+            };
+
+            // 2. Controller Entered Rights OTP -> Grant Access
+            const onAccessGranted = (grantedAadhar) => {
+                console.log("Access Granted Signal:", grantedAadhar);
+                if (grantedAadhar === user.aadhar) {
                     setOrderStatus('FORM_INPUT');
-                } else {
-                    setOrderStatus('DELIVERED');
                 }
-                setCurrentOtp(null);
-            });
+            };
 
-            // Listen for final status
-            socket.on(`order-status-${user.aadhar}`, (data) => {
-                if (data.status === 'IN_TRANSIT') {
-                    setOrderStatus('TRANSIT');
+            // Listener: Order Status
+            const onOrderStatus = (id, status) => {
+                if (status === 'IN_TRANSIT') setOrderStatus('TRANSIT');
+
+                // Real-time update for Receiver
+                if (status === 'DELIVERED') {
+                    setIncomingOrders(prev => prev.map(o =>
+                        o.id === id ? { ...o, status: 'DELIVERED' } : o
+                    ));
                 }
-            });
+            };
+
+            contract.on('UserVerified', onUserVerified);
+            contract.on('AccessGranted', onAccessGranted);
+            contract.on('OrderStatusUpdated', onOrderStatus);
+
+            return () => {
+                contract.off('UserVerified', onUserVerified);
+                contract.off('AccessGranted', onAccessGranted);
+                contract.off('OrderStatusUpdated', onOrderStatus);
+            };
         }
-        return () => socket.off();
-    }, [user.aadhar]);
+    }, [contract, user.aadhar]);
+
+
+    // Fetch Orders when entering Receive View
+    useEffect(() => {
+        if (view === 'RECEIVE_FLOW' && contract) {
+            const fetchOrders = async () => {
+                setLoadingOrders(true);
+                try {
+                    const orders = await contract.getOrders();
+                    // Filter for my email and pending status
+                    // Note: contract orders are struct arrays.
+                    const myOrders = orders
+                        .filter(o => o.receiverEmail === user.email && (o.status === 'IN_TRANSIT' || o.status === 'DELIVERED'))
+                        .map(o => ({
+                            id: o.id,
+                            description: o.description,
+                            senderAadhar: o.senderAadhar,
+                            status: o.status,
+                            deliveryTimestamp: o.deliveryTimestamp
+                        }));
+
+                    // Sort: IN_TRANSIT first, then DELIVERED (newest first)
+                    // Simple hack: Assume order IDs roughly correlate or just reverse
+                    const pending = myOrders.filter(o => o.status === 'IN_TRANSIT');
+                    const recentDelivered = myOrders.filter(o => o.status === 'DELIVERED').slice(-3); // Show last 3 delivered
+
+                    setIncomingOrders([...pending, ...recentDelivered]);
+                } catch (err) {
+                    console.error("Fetch Orders Failed", err);
+                } finally {
+                    setLoadingOrders(false);
+                }
+            };
+            fetchOrders();
+        }
+    }, [view, contract, user.email]);
+
 
     const handleAddressSubmit = async () => {
+        if (!contract) return;
         try {
-            await axios.post('http://localhost:3001/api/user/complete-order', {
-                transactionId: currentTransactionId,
-                receiverAddress: receiverData.address,
-                receiverMobile: receiverData.mobile,
-                packageDescription: receiverData.description || 'Standard Post',
-                packageWeight: receiverData.weight || '0.5'
-            });
-            // State update handled by socket `order-status` or manually here
-            setOrderStatus('TRANSIT');
+            console.log("Creating Order on Blockchain...");
+            // Generate Random Order ID
+            const orderId = "ORD-" + Math.floor(1000 + Math.random() * 9000);
+
+            const tx = await contract.createOrder(
+                orderId,
+                user.aadhar,
+                receiverData.mobile || '0000000000',
+                receiverData.email || 'receiver@example.com',
+                receiverData.address,
+                receiverData.description || 'Standard Post',
+                receiverData.weight || '0.5'
+            );
+            await tx.wait();
+            console.log("Order Created on Chain:", orderId);
+
+            // Reset and Show Success (Maybe move to History)
+            setLastCreatedOrderId(orderId);
+            setOrderStatus('ORDER_SUCCESS');
+            // alert(`Order Placed! ID: ${orderId}`); REMOVED as per request
         } catch (e) {
-            console.error(e);
+            console.error("Order Creation Failed:", e);
         }
     };
 
     return (
-        <div className="bg-slate-900 min-h-screen p-4 text-slate-50 font-sans">
+        <div className="min-h-screen p-4 font-sans text-slate-900">
+
+            {/* Nav Header */}
 
 
-            <main className="max-w-7xl mx-auto flex justify-center items-center min-h-[80vh]">
+            <main className="max-w-7xl mx-auto flex justify-center items-center min-h-[calc(100vh-100px)]">
                 {view === 'MAIN' && (
                     <div style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(2, 1fr)',
-                        columnGap: '8rem',
-                        rowGap: '3rem',
+                        columnGap: '2rem',
+                        rowGap: '2rem',
                         width: '100%',
-                        maxWidth: '1000px',
+                        maxWidth: '900px',
                         margin: '0 auto',
-                        padding: '4rem',
+                        padding: '1rem',
                         justifyItems: 'center'
                     }}>
-                        <div style={{ width: '100%', maxWidth: '240px', transform: 'translateX(-40px)' }}>
+                        <div style={{ width: '100%' }}>
                             <Card
-                                icon={<Send size={32} className="text-blue-400" />}
+                                icon={<Send size={32} className="text-blue-600" />}
                                 title="Send Post"
                                 desc="Dispatch generic items."
                                 onClick={() => setView('SEND_FLOW')}
                             />
                         </div>
-                        <div style={{ width: '100%', maxWidth: '240px' }}>
+                        <div style={{ width: '100%' }}>
                             <Card
-                                icon={<Package size={32} className="text-green-400" />}
+                                icon={<Package size={32} className="text-blue-600" />}
                                 title="Receive Post"
                                 desc="Collect your deliveries."
                                 onClick={() => setView('RECEIVE_FLOW')}
                             />
                         </div>
-                        <div style={{ width: '100%', maxWidth: '240px', transform: 'translateX(-40px)' }}>
+                        <div style={{ width: '100%' }}>
                             <Card
-                                icon={<div className="text-purple-400 font-bold text-2xl">ID</div>}
+                                icon={<div className="text-blue-600 font-black text-2xl border-2 border-blue-600 rounded px-2">ID</div>}
                                 title="Face ID Setup"
                                 desc="Register verification."
                                 onClick={() => window.location.href = '/face-setup'}
                             />
                         </div>
-                        <div style={{ width: '100%', maxWidth: '240px' }}>
+                        <div style={{ width: '100%' }}>
                             <Card
-                                icon={<Clock size={32} className="text-orange-400" />}
+                                icon={<Clock size={32} className="text-blue-600" />}
                                 title="History"
                                 desc="View past transactions."
                                 onClick={() => window.location.href = '/history'}
@@ -121,38 +202,43 @@ const Dashboard = () => {
                 )}
                 {
                     view === 'SEND_FLOW' && (
-                        <div className="glass-panel p-6 relative min-h-[400px]">
-                            <button onClick={() => setView('MAIN')} className="absolute top-4 left-4 text-sm text-slate-400">← Back</button>
+                        <div className="glass-panel relative mx-auto flex flex-col justify-center items-center py-12" style={{ width: '700px', minHeight: '450px' }}>
+                            <button
+                                onClick={() => setView('MAIN')}
+                                className="fixed top-28 left-8 text-sm font-bold uppercase tracking-wide text-black hover:underline border-2 border-black hover:bg-black hover:text-white px-3 py-1 rounded-lg transition z-[2000]"
+                            >
+                                BACK
+                            </button>
 
-                            <div className="mt-8 text-center">
-                                <h2 className="text-2xl font-bold mb-6">Send Package</h2>
+                            <div className="mt-8 text-center w-full">
+
 
                                 {orderStatus === 'IDLE' && (
                                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                        <div className="p-8 border border-dashed border-slate-600 rounded-xl mb-4">
-                                            <p className="text-slate-300 mb-2">Please proceed to the Controller Counter.</p>
-                                            <p className="text-sm text-slate-500">The agent will verify your identity via Face Scan. Once scanned, an OTP will appear here.</p>
+                                        <div className="p-8 border-2 border-dashed border-black rounded-xl mb-8 bg-white max-w-md mx-auto">
+                                            <h3 className="text-lg mb-2">Visit Controller Counter</h3>
+                                            <p className="text-sm text-slate-600 font-bold">The agent will verify your identity via Face Scan. Once scanned, an OTP will appear here.</p>
                                         </div>
-                                        <div className="animate-pulse text-blue-400">Waiting for Controller...</div>
+                                        <div className="animate-pulse font-bold text-blue-600 px-4 py-2 border border-blue-200 rounded-lg inline-block">Waiting for Controller...</div>
                                     </motion.div>
                                 )}
 
                                 {orderStatus === 'OTP_RECEIVED' && (
                                     <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }}>
-                                        <p className="mb-4 text-slate-300">Share this OTP with the Controller</p>
+                                        <h3 className="text-lg mb-4">Share this OTP</h3>
                                         <div className="mb-8">
                                             <OtpDisplay otp={currentOtp} />
                                         </div>
-                                        <div className="text-sm text-red-400 animate-pulse">Expires in 5:00</div>
+                                        <div className="text-xs text-red-600 font-bold uppercase tracking-wide">Expires in 5:00</div>
                                     </motion.div>
                                 )}
 
                                 {orderStatus === 'FORM_INPUT' && (
                                     <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }}>
-                                        <h3 className="text-xl mb-4 text-green-400 flex items-center justify-center gap-2">
-                                            <CheckCircle size={24} /> Identity Verified
+                                        <h3 className="text-xl mb-6 text-blue-600 font-black flex items-center justify-center gap-2 uppercase tracking-tight">
+                                            <CheckCircle size={24} strokeWidth={3} /> Identity Verified
                                         </h3>
-                                        <div className="space-y-4 max-w-md mx-auto">
+                                        <div className="space-y-4 max-w-lg mx-auto px-8">
                                             <div className="grid grid-cols-2 gap-4">
                                                 <Input
                                                     placeholder="Item Description"
@@ -176,7 +262,51 @@ const Dashboard = () => {
                                                 value={receiverData.mobile}
                                                 onChange={(e) => setReceiverData({ ...receiverData, mobile: e.target.value })}
                                             />
-                                            <Button onClick={handleAddressSubmit}>Confirm Order</Button>
+                                            <Input
+                                                placeholder="Receiver Email"
+                                                value={receiverData.email || ''}
+                                                onChange={(e) => setReceiverData({ ...receiverData, email: e.target.value })}
+                                            />
+                                            <div className="flex gap-4 mt-6">
+                                                <button
+                                                    onClick={() => { setView('MAIN'); setOrderStatus('IDLE'); }}
+                                                    className="flex-1 py-3 rounded-lg font-bold text-sm tracking-widest uppercase transition-all bg-white hover:bg-slate-100 text-black border-2 border-black"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <div className="flex-1">
+                                                    <Button onClick={handleAddressSubmit} className="btn-primary">Confirm Order</Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {orderStatus === 'ORDER_SUCCESS' && (
+                                    <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} className="py-8">
+                                        <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-black">
+                                            <CheckCircle size={40} className="text-blue-600" />
+                                        </div>
+                                        <h3 className="text-2xl font-black text-black mb-2 uppercase italic">Order Confirmed!</h3>
+
+                                        <div className="bg-white p-6 rounded-xl border-2 border-black mb-8 max-w-sm mx-auto shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                                            <p className="text-xs text-slate-500 uppercase tracking-widest mb-2 font-bold">ORDER ID</p>
+                                            <p className="text-2xl font-mono text-black select-all font-black tracking-wider">{lastCreatedOrderId}</p>
+                                        </div>
+
+                                        <div className="flex gap-4 justify-center">
+                                            <button
+                                                onClick={() => { setView('MAIN'); setOrderStatus('IDLE'); }}
+                                                className="text-slate-500 hover:text-black transition text-sm font-bold uppercase tracking-wide"
+                                            >
+                                                Back to Home
+                                            </button>
+                                            <button
+                                                onClick={() => window.location.href = '/history'}
+                                                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg transition font-bold border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] uppercase tracking-wide"
+                                            >
+                                                View History
+                                            </button>
                                         </div>
                                     </motion.div>
                                 )}
@@ -188,13 +318,12 @@ const Dashboard = () => {
                                                 animate={{ x: [0, 50, -50, 0] }}
                                                 transition={{ repeat: Infinity, duration: 4 }}
                                             >
-                                                <Truck size={64} className="text-blue-500" />
+                                                <Truck size={64} className="text-black" />
                                             </motion.div>
                                         </div>
-                                        <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+                                        <h3 className="text-3xl font-black uppercase text-black italic">
                                             Order is Travelling
                                         </h3>
-                                        <p className="text-slate-400 mt-2">Your package is on its way!</p>
                                     </motion.div>
                                 )}
                             </div>
@@ -204,24 +333,54 @@ const Dashboard = () => {
 
                 {
                     view === 'RECEIVE_FLOW' && (
-                        <div className="glass-panel p-6 relative text-center">
-                            <button onClick={() => setView('MAIN')} className="absolute top-4 left-4 text-sm text-slate-400">← Back</button>
-                            <h2 className="text-2xl font-bold mb-6 mt-8">Receive Package</h2>
+                        <div className="glass-panel relative min-h-[500px] text-center">
+                            <button
+                                onClick={() => setView('MAIN')}
+                                className="fixed top-28 left-8 text-sm font-bold uppercase tracking-wide text-black hover:underline border-2 border-black hover:bg-black hover:text-white px-3 py-1 rounded-lg transition z-[2000]"
+                            >
+                                BACK
+                            </button>
+                            <h2 className="text-3xl font-black uppercase mb-8 mt-4 italic text-black">Incoming Packages</h2>
 
-                            {orderStatus === 'IDLE' && <p>Waiting for Delivery Agent...</p>}
+                            {loadingOrders ? (
+                                <p className="animate-pulse font-bold text-slate-500">Scanning Ledger...</p>
+                            ) : incomingOrders.length === 0 ? (
+                                <p className="text-slate-400 font-bold py-12">No pending deliveries found.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {incomingOrders.map(order => (
+                                        <div key={order.id} className={`border-2 border-black p-4 flex flex-col items-start text-left rounded-xl transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${order.status === 'DELIVERED' ? 'bg-green-50/50' : 'bg-white hover:bg-slate-50'}`}>
+                                            <div className="flex justify-between w-full mb-2">
+                                                <span className="text-black font-black font-mono text-sm tracking-wide">ID: {order.id}</span>
+                                                <span className={`text-xs font-bold px-2 py-1 rounded uppercase tracking-wider border ${order.status === 'DELIVERED' ? 'bg-green-100 text-green-700 border-green-300' : 'bg-blue-50 text-blue-800 border-blue-200'}`}>{order.status}</span>
+                                            </div>
+                                            <p className="text-lg text-black font-bold mb-1">{order.description}</p>
+                                            <p className="text-xs text-slate-500 mb-4 font-bold">From: {order.senderAadhar}</p>
 
-                            {orderStatus === 'OTP_RECEIVED' && (
-                                <div>
-                                    <p className="mb-4">Share this OTP with Delivery agent</p>
-                                    <div className="mb-4">
-                                        <OtpDisplay otp={currentOtp} />
-                                    </div>
-                                </div>
-                            )}
-
-                            {orderStatus === 'DELIVERED' && (
-                                <div className="text-green-500 text-xl font-bold">
-                                    Package Delivered Successfully!
+                                            {order.status === 'DELIVERED' ? (
+                                                <div className="w-full bg-green-100 p-3 rounded-lg border border-green-300 text-center">
+                                                    <p className="text-xs text-green-800 mb-1 uppercase font-extrabold tracking-widest flex items-center justify-center gap-2">
+                                                        <CheckCircle size={16} strokeWidth={3} /> Successfully Delivered
+                                                    </p>
+                                                    <p className="text-sm text-green-700 font-bold mb-1">
+                                                        Package Received
+                                                    </p>
+                                                    {order.deliveryTimestamp && order.deliveryTimestamp > 0 && (
+                                                        <p className="text-xs text-green-600 font-mono font-bold tracking-wide">
+                                                            {new Date(Number(order.deliveryTimestamp) * 1000).toLocaleString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="w-full bg-slate-50 p-3 rounded-lg border border-slate-300 text-center">
+                                                    <p className="text-xs text-black mb-1 uppercase font-extrabold tracking-widest">Verification Required</p>
+                                                    <p className="text-sm text-slate-600 font-bold">
+                                                        Visit Controller & Scan Face to Receive
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
@@ -234,26 +393,14 @@ const Dashboard = () => {
 
 const Card = ({ icon, title, desc, onClick }) => (
     <motion.div
-        whileHover={{ y: -5 }}
+        whileHover={{ y: -5, boxShadow: "8px 8px 0px 0px rgba(0,0,0,1)" }}
+        whileTap={{ y: 0, boxShadow: "0px 0px 0px 0px rgba(0,0,0,1)" }}
         onClick={onClick}
-        className="glass-panel hover:border-blue-500/50 transition-colors"
-        style={{
-            minHeight: '250px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            textAlign: 'center',
-            padding: '1.5rem',
-            cursor: 'pointer',
-            width: '100%',
-            maxWidth: 'none',
-            margin: 0
-        }}
+        className="bg-white border-2 border-black rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all cursor-pointer p-8 flex flex-col items-center text-center w-full"
     >
         <div className="mb-4">{icon}</div>
-        <h3 className="text-xl font-bold mb-2">{title}</h3>
-        <p className="text-slate-400">{desc}</p>
+        <h3 className="text-xl font-black uppercase text-black mb-2 tracking-tight">{title}</h3>
+        <p className="text-slate-600 font-bold text-xs leading-tight">{desc}</p>
     </motion.div>
 );
 

@@ -45,14 +45,14 @@ const OtpInput = ({ length = 4, value, onChange }) => {
                 onKeyDown={(e) => handleKeyDown(e, i)}
                 className="otp-box"
                 style={{
-                    width: '36px',
-                    height: '36px',
-                    fontSize: '1.25rem',
+                    width: '64px',
+                    height: '64px',
+                    fontSize: '2rem',
                     textAlign: 'center',
-                    border: '4px solid #000000',
-                    borderRadius: '0.5rem',
+                    border: '2px solid #000000',
+                    borderRadius: '12px',
 
-                    background: 'rgba(255, 255, 255, 0.8)',
+                    background: '#ffffff',
                     fontFamily: 'sans-serif',
                     fontWeight: 'bold',
                     color: '#000000',
