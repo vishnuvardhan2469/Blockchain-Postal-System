@@ -2,7 +2,7 @@
 
 A decentralized postal delivery tracking system built with **Blockchain technology**, ensuring transparency, security, and immutability of delivery records.
 
-## 🚀 Features
+##  Features
 
 - **Decentralized Tracking**: Orders are tracked on the Ethereum blockchain (Hardhat).
 - **Three-Portal System**:
@@ -12,14 +12,14 @@ A decentralized postal delivery tracking system built with **Blockchain technolo
 - **Secure Authentication**: Face registration and verification for secure access.
 - **Delivery Timestamp**: Immutably records exactly when an order was delivered.
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 - **Frontend**: React.js, Vite, TailwindCSS
 - **Blockchain**: Solidity, Hardhat, Ethers.js
 - **Backend**: Node.js, Express
 - **Database**: MongoDB (for user data), Blockchain (for order transactions)
 
-## 📂 Project Structure
+##  Project Structure
 
 - `blockchain/`: Smart Contract (Solidity) & Hardhat scripts.
 - `server/`: Backend API server.
@@ -27,7 +27,7 @@ A decentralized postal delivery tracking system built with **Blockchain technolo
 - `controller-client/`: Admin/Postman dashboard.
 - `landing-client/`: Main landing page website.
 
-## 📦 How to Run
+##  How to Run
 
 1. **Install Dependencies**:
    Run `npm install` in all subdirectories (`server`, `user-client`, `controller-client`, `landing-client`, `blockchain`).
