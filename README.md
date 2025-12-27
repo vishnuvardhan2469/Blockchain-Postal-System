@@ -13,7 +13,7 @@ I designed and built a **Secure Decentralized Logistics Platform** to eliminate 
 - **Decentralized Tracking**: Orders are tracked on the Ethereum blockchain (Hardhat).
 - **Three-Portal System**:
   - **Landing Page**: Public entry point.
-  - **User Portal**: For customers to book, track, and manage deliveries.
+  - **User Portal**: For customers to manage deliveries.
   - **Controller Portal**: For postal admins to update status and manage logistics.
 - **Secure Authentication**: Face registration and verification for secure access.
 - **Delivery Timestamp**: Immutably records exactly when an order was delivered.
