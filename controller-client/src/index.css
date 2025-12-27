@@ -137,8 +137,8 @@ body {
   padding: 1rem;
 }
 
-/* Gen-Z Header (Matching Controller but Black) */
-.gen-z-header {
+/* Main Header */
+.main-header {
   position: fixed;
   top: 0;
   left: 0;

@@ -103,6 +103,14 @@ contract PostalService {
         return (false, u);
     }
 
+    // DELETE USER
+    function deleteUser(string memory _aadhar) public {
+        require(usersByAadhar[_aadhar].isRegistered, "User not found");
+        usersByAadhar[_aadhar].isRegistered = false;
+        // Optionally clear email mapping too, but keeping it prevents re-registration with same email if desired.
+        // For total wipe: delete emailToAadhar[usersByAadhar[_aadhar].email];
+    }
+
     // ORDER MANAGEMENT
     function createOrder(string memory _orderId, string memory _senderAadhar, string memory _receiverMobile, string memory _receiverEmail, string memory _receiverAddress, string memory _description, string memory _weight) public {
         

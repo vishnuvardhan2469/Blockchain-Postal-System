@@ -11,7 +11,7 @@ function App() {
   return (
     <BrowserRouter>
       {/* Background & Header */}
-      <div className="gen-z-header">GEN-Z POSTAL SERVICES</div>
+      <div className="main-header">SECURE POSTAL SERVICES</div>
       <div className="aurora-bg">
         <div className="aurora-blob blob-1"></div>
         <div className="aurora-blob blob-2"></div>

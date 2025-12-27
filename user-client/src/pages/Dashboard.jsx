@@ -147,8 +147,46 @@ const Dashboard = () => {
         }
     };
 
+    const handleDeleteAccount = async () => {
+        if (!window.confirm("ARE YOU SURE? This will permanently delete your account and you cannot undo this action.")) return;
+
+        if (!contract) return;
+        try {
+            console.log("Deleting User Account:", user.aadhar);
+            const tx = await contract.deleteUser(user.aadhar);
+            await tx.wait();
+
+            // Clear local storage
+            localStorage.removeItem('user');
+            // Redirect to Landing Page
+            window.location.href = 'http://localhost:5170';
+        } catch (e) {
+            console.error("Delete Account Failed:", e);
+            const errorMessage = (e.reason || e.message || JSON.stringify(e));
+
+            // If the user doesn't exist on chain (e.g. after redeploy), just clear session
+            if (errorMessage.includes("User not found")) {
+                alert("Account already removed from Blockchain. Clearing local session.");
+                localStorage.removeItem('user');
+                window.location.href = 'http://localhost:5170';
+                return;
+            }
+
+            // Show detailed error for other cases
+            alert("Failed to delete account!\n\nReason: " + errorMessage);
+        }
+    };
+
     return (
-        <div className="min-h-screen p-4 font-sans text-slate-900">
+        <div className="min-h-screen p-4 font-sans text-slate-900 relative">
+
+            {/* DELETE ACCOUNT BUTTON - Fixed Bottom Left */}
+            <button
+                onClick={handleDeleteAccount}
+                className="fixed bottom-4 left-4 bg-red-600 hover:bg-red-700 text-white font-black uppercase text-xs px-4 py-2 rounded shadow-lg z-50 transition-all border-2 border-red-900"
+            >
+                DELETE ACCOUNT
+            </button>
 
             {/* Nav Header */}
 
