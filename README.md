@@ -2,7 +2,7 @@
 
 I designed and built a **Secure Decentralized Logistics Platform** to eliminate trust issues in traditional postal systems. I engineered a hybrid architecture using **Ethereum Smart Contracts (Solidity)** for immutable transaction recording and **React.js/Node.js** for a responsive user interface. To prevent identity fraud, I integrated a custom **client-side biometric authentication system** (face-api.js) that verifies users before granting blockchain write access. The system features a 3-portal ecosystem (Admin, User, Public) and ensures data integrity through cryptographic proofs.
 
-## 🎥 Demo Video
+##  Demo Video
 
 [![Watch the Demo](https://img.youtube.com/vi/IvXB2HSMP50/0.jpg)](https://youtu.be/IvXB2HSMP50)
 
@@ -22,26 +22,26 @@ I designed and built a **Secure Decentralized Logistics Platform** to eliminate 
 ##  Tech Stack
 
 ### Frontend & Interface
-- **I used React.js** to build the interactive User, Controller, and Landing portals.
-- **I used Vite** as the build tool for its Hot Module Replacement (HMR) and fast performance.
-- **I used Tailwind CSS** to design the modern, glassmorphism UI and responsive grids.
-- **I used Framer Motion** to add smooth animations and interactive transitions.
-- **I used face-api.js** to implement client-side facial recognition and verification.
-- **I used Lucide React** for consistent, clean iconography throughout the app.
+- **React.js** to build the interactive User, Controller, and Landing portals.
+- **Vite** as the build tool for its Hot Module Replacement (HMR) and fast performance.
+- **Tailwind CSS** to design the modern, glassmorphism UI and responsive grids.
+- **Framer Motion** to add smooth animations and interactive transitions.
+- **face-api.js** to implement client-side facial recognition and verification.
+- **Lucide React** for consistent, clean iconography throughout the app.
 
 ### Blockchain & Security
-- **I used Solidity** to write the `PostalService.sol` smart contract that handles logic and data storage.
-- **I used Hardhat** to compile, test, and deploy my local blockchain environment.
-- **I used Ethers.js** to connect my React frontend to the Ethereum network.
-- **I used SHA-256 Hashing** within the smart contract for secure password verification.
+- **Solidity** to write the `PostalService.sol` smart contract that handles logic and data storage.
+- **Hardhat** to compile, test, and deploy my local blockchain environment.
+- **Ethers.js** to connect my React frontend to the Ethereum network.
+- **SHA-256 Hashing** within the smart contract for secure password verification.
 
 ### Backend & Data
-- **I used Node.js & Express** to handle backend processes and Face API model serving.
-- **I used MongoDB** to store heavy user metadata off-chain for efficiency.
+- **Node.js & Express** to handle backend processes and Face API model serving.
+- **MongoDB** to store heavy user metadata off-chain for efficiency.
 
 ### Tools & DevOps
-- **I used Git** for version control and code management.
-- **I wrote Batch Scripts** to automate the startup of multiple servers and blockchain nodes simultaneously.
+- **Git** for version control and code management.
+- **Batch Scripts** to automate the startup of multiple servers and blockchain nodes simultaneously.
 
 ##  Project Structure
 
